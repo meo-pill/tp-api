@@ -1,93 +1,185 @@
-# Design REST API
 
+# TP1 Back-end 
 
+## Instructions de déploiement
 
-## Getting started
+### 1. Setup local (sans Docker)
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+```bash
+# Installer PostgreSQL
+# Mac: brew install postgresql
+# Ubuntu: sudo apt-get install postgresql
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+# Démarrer PostgreSQL
+# Mac: brew services start postgresql
+# Ubuntu: sudo service postgresql start
 
-## Add your files
+# Créer la base de données
+createdb credit_scoring_db
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+# Installer les dépendances Python
+pip install -r requirements.txt
 
+# Initialiser la DB
+python init_db.py
+
+# Lancer l'API
+uvicorn app.main:app --reload
 ```
-cd existing_repo
-git remote add origin https://git-lium.univ-lemans.fr/asini/design-rest-api.git
-git branch -M main
-git push -uf origin main
+
+### 2. Setup avec Docker Compose (recommandé)
+```bash
+# Lancer PostgreSQL + API
+docker-compose up -d
+
+# Initialiser la DB (dans le conteneur)
+docker-compose exec api python init_db.py
+
+# Voir les logs
+docker-compose logs -f api
 ```
 
-## Integrate with your tools
+### 3. Tester l'authentification
+```bash
+# Inscription
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "username": "john",
+    "password": "SecurePass123",
+    "full_name": "John Doe"
+  }'
 
-* [Set up project integrations](https://git-lium.univ-lemans.fr/asini/design-rest-api/-/settings/integrations)
+# Login
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=john&password=SecurePass123"
 
-## Collaborate with your team
+# Récupérer le token et l'utiliser
+TOKEN="eyJ..."  # Le token reçu du login
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+# Faire une prédiction (avec token)
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "age": 35,
+    "income": 3200,
+    "credit_amount": 15000,
+    "duration": 48
+  }'
+```
 
-## Test and Deploy
+---
 
-Use the built-in continuous integration in GitLab.
+## 📊 Déroulement du TD avec Auth + DB
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Phase 1 : Comprendre l'architecture (20 min)
 
-***
+**Vous expliquez (avec schéma) :**
 
-# Editing this README
+   Client → Login → JWT Token → API (vérifie token) → DB → Réponse
+   
+ **Démo live :**
+1. Inscription d'un utilisateur
+2. Login et récupération du token
+3. Utilisation du token pour faire une prédiction
+4. Consultation de l'historique
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Phase 2 : Configuration DB (30 min)
+```python
+# Vous codez ensemble database.py
+# Expliquez chaque table
 
-## Suggestions for a good README
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    # "Pourquoi primary_key ? C'est l'identifiant unique"
+    
+    email = Column(String, unique=True)
+    # "Pourquoi unique=True ? On ne veut pas 2 users avec le même email"
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+**🛑 CHECKPOINT : "Lancez PostgreSQL et créez la DB"**
 
-## Name
-Choose a self-explaining name for your project.
+### Phase 3 : Authentification JWT (45 min)
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+**Concepts à expliquer :**
+- Qu'est-ce qu'un JWT ?
+- Pourquoi hasher les mots de passe ?
+- Comment vérifier un token ?
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+**Code progressif :**
+```python
+# auth.py - Version simple d'abord
+def create_access_token(username: str) -> str:
+    return f"fake-token-for-{username}"
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Puis version réelle avec JWT
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Phase 4 : Endpoints protégés (60 min)
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+**Montrer la magie des dépendances FastAPI :**
+```python
+@app.post("/predict")
+async def predict(
+    request: CreditRequest,
+    current_user: User = Depends(get_current_active_user)  # ✨ Magie !
+):
+    # Si pas de token valide, FastAPI renvoie 401 automatiquement
+    # Sinon, current_user contient l'utilisateur
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+**🛑 CHECKPOINT : "Testez /predict sans token → 401"**
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### Phase 5 : Data Collection (40 min)
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+**Enregistrer les prédictions :**
+```python
+# Dans /predict, après la prédiction
+db_prediction = create_prediction(
+    db, user_id, age, income, ...
+)
+# "Maintenant on peut analyser toutes les requêtes !"
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+**Créer l'endpoint d'historique :**
+```python
+@app.get("/predictions/history")
+async def history(current_user: User = Depends(...)):
+    return get_user_predictions(db, current_user.id)
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### Phase 6 : Tests avec Postman (45 min)
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+**Collection mise à jour :**  
+   
+1.Register User
+2.Login (sauver le token en variable)
+3.Get Current User (avec token)
+4.Predict (avec token)
+5.Get History (avec token)
+6.Get Stats (avec token)
 
-## License
-For open source projects, say how it is licensed.
+**Astuce Postman pour auto-token :**
+```javascript
+// Dans "Tests" du login
+pm.environment.set("auth_token", pm.response.json().access_token);
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+// Puis dans les autres requêtes, Header:
+// Authorization: Bearer {{auth_token}}
+```
+
+---
+
+## 📝 Exercices autonomes suggérés
+
+1. **Endpoint de suppression de compte**
+2. **Endpoint pour changer le mot de passe**
+3. **Limite de requêtes par jour (rate limiting)**
+4. **Export de l'historique en CSV**
+5. **Dashboard admin pour visualiser les stats**
+
+

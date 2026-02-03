@@ -1,0 +1,19 @@
+.
+├── auth.py
+├── config.py
+├── crud.py
+├── database.py
+├── dependencies.py
+├── __init__.py
+├── main.py
+├── models.py
+├── predictor.py
+├── routers
+│   ├── admin.py
+│   ├── auth.py
+│   ├── __init__.py
+│   ├── model.py
+│   └── predictions.py
+└── schemas.py
+
+2 directories, 15 files
