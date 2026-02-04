@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     MODEL_PATH: Path = BASE_DIR / "models" / "credit_scoring_model.pkl"
     
     # Database
-    DATABASE_URL: str = "postgresql://credit_user:credit_password@localhost:5432/credit_scoring_db"
+    DATABASE_URL: str = "postgresql://credit_user:credit_password@db:5432/credit_scoring_db"
     
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"

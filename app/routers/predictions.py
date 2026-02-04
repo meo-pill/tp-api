@@ -41,7 +41,7 @@ async def predict_credit(request: CreditRequest, http_request: Request,
     return CreditResponse(
         decision=decision,
         probability=round(probability, 4),
-        model_version=f"credit_scoring_model_v{predictor.model_config['version']}",
+        model_ver=f"credit_scoring_model_v{predictor.model_config['version']}",
         prediction_id=db_prediction.id
     )
 

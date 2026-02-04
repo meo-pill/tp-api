@@ -10,7 +10,33 @@ from app.auth import (
     get_current_active_user,
 )
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
+
+# ================== REGISTER ==================
+
+@router.post("/register", response_model=schemas.UserResponse)
+def register(
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db),
+):
+    # Vérifier si l'utilisateur existe déjà par email
+    existing_user = crud.get_user_by_email(db, user.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Un utilisateur avec cet email existe déjà"
+        )
+    
+    # Vérifier si l'utilisateur existe déjà par username
+    existing_user = crud.get_user_by_username(db, user.username)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Un utilisateur avec ce nom d'utilisateur existe déjà"
+        )
+    
+    # Créer l'utilisateur
+    return crud.create_user(db, user)
 
 # ================== LOGIN ==================
 
