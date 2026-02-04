@@ -22,6 +22,8 @@ class CreditRequest(BaseModel):
 
 
 class CreditResponse(BaseModel):
+    model_config = {'protected_namespaces': ()}
+    
     decision: Literal["APPROVED", "REJECTED"]
     probability: float
     model_ver: str
@@ -31,6 +33,8 @@ class CreditResponse(BaseModel):
 
     
 class PredictionHistory(BaseModel):
+    model_config = {'protected_namespaces': (), 'from_attributes': True}
+    
     id: int
     age: int
     income: float
@@ -40,9 +44,6 @@ class PredictionHistory(BaseModel):
     probability: float
     model_version: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class PredictionStats(BaseModel):
     total_predictions: int
@@ -59,6 +60,8 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
+    model_config = {'from_attributes': True}
+    
     id: int
     email: str
     username: str
@@ -66,7 +69,4 @@ class UserResponse(BaseModel):
     is_active: bool
     is_admin: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 

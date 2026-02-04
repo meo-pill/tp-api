@@ -6,7 +6,7 @@ from app.dependencies import get_current_admin_user
 from app.crud import get_all_users, get_global_stats
 from app.schemas import UserResponse
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(tags=["admin"])
 
 @router.get("/users", response_model=list[UserResponse])
 def list_users(

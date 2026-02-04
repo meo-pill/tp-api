@@ -10,14 +10,6 @@ from app.security import get_password_hash
 from typing import Optional
 
 
-
-
-
-
-
-
-
-
 def get_user_by_email(db: Session, email: str) -> User:
     return db.query(User).filter(User.email == email).first()
 
@@ -124,13 +116,13 @@ def get_user_prediction_stats(db: Session, user_id: int) -> dict:
     }
 
 def get_all_users(db: Session):
-    return db.query(models.User).all()
+    return db.query(User).all()
 
 
 
 def get_global_stats(db: Session) -> dict:
-    total_users = db.query(func.count(models.User.id)).scalar()
-    total_predictions = db.query(func.count(models.Prediction.id)).scalar()
+    total_users = db.query(func.count(User.id)).scalar()
+    total_predictions = db.query(func.count(Prediction.id)).scalar()
 
     return {
         "total_users": total_users,
