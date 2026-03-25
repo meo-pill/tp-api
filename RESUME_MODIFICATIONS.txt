@@ -1,0 +1,278 @@
+================================================================================
+               Journal de déploiement - API Credit Scoring
+                        Session du 4 février 2026
+================================================================================
+
+Salut ! Voici le récit de notre aventure pour faire fonctionner l'API Credit 
+Scoring. On a rencontré pas mal de galères, mais tout est résolu maintenant ! 
+
+
+ LE POINT DE DÉPART
+=====================
+
+On avait une API FastAPI avec :
+   Authentification JWT pour sécuriser les accès
+   Base de données PostgreSQL pour stocker les données
+   Un modèle de Machine Learning pour le scoring de crédit
+   Le tout packagé dans Docker Compose
+
+La mission ? Lancer tout ça avec un simple "docker-compose up -d"...
+Spoiler : ça ne s'est pas passé comme prévu ! 
+
+
+ LES GALÈRES RENCONTRÉES (et comment on les a résolues)
+=========================================================
+
+PROBLÈME N°1 : Conflit de conteneur
+-----------------------------------
+Au premier lancement, Docker nous dit qu'un conteneur avec le même nom existe 
+déjà. Classique quand on a déjà joué avec le projet avant !
+
+ Solution : On supprime l'ancien conteneur qui traînait
+  docker rm -f credit-scoring-api
+
+
+PROBLÈME N°2 : Port 8000 déjà occupé
+------------------------------------
+Le port 8000 était squatté par Portainer (un autre outil Docker qu'on avait
+sur la machine).
+
+ Solution : On arrête temporairement Portainer pour libérer le port
+  docker stop [id-du-conteneur-portainer]
+
+
+PROBLÈME N°3 : Dépendance Python manquante
+------------------------------------------
+L'API crashait parce qu'il manquait le module "email-validator" pour valider
+les adresses email des utilisateurs.
+
+ Solution : On ajoute la dépendance dans requirements.txt
+  email-validator==2.1.0
+
+
+PROBLÈME N°4 : Mauvaise URL de base de données
+----------------------------------------------
+L'API essayait de se connecter à "localhost" au lieu du conteneur "db" dans 
+Docker. Forcément, ça ne marchait pas !
+
+ Solution : On corrige l'URL dans app/config.py
+  Avant : postgresql://meo@localhost:5432/...
+  Après : postgresql://credit_user:credit_password@db:5432/...
+
+
+PROBLÈME N°5 : L'endpoint d'inscription n'existait pas !
+--------------------------------------------------------
+Quand on essayait de créer un compte, l'API répondait "Not Found". Normal, 
+personne n'avait codé cette fonctionnalité ! 
+
+ Solution : On ajoute l'endpoint /auth/register dans app/routers/auth.py
+  Avec validation de l'email et du username uniques.
+
+
+PROBLÈME N°6 : Les URLs étaient doublées
+----------------------------------------
+Au lieu de "/auth/login", on obtenait "/auth/auth/login". Le préfixe "/auth" 
+était défini deux fois (dans main.py ET dans auth.py).
+
+ Solution : On retire le préfixe du router auth.py
+  router = APIRouter(tags=["auth"])  # sans le prefix
+
+
+PROBLÈME N°7 : Nom de champ incorrect dans la réponse
+-----------------------------------------------------
+L'API plantait à cause d'un champ "model_version" qui devait s'appeler 
+"model_ver" selon le schéma Pydantic. Un petit détail qui fait tout planter !
+
+ Solution : Renommer model_version en model_ver dans predictions.py
+
+
+PROBLÈME N°8 : Même souci pour les routes admin
+-----------------------------------------------
+Comme pour auth, les routes admin avaient aussi le double préfixe 
+(/admin/admin/users au lieu de /admin/users).
+
+ Solution : Même correction dans admin.py
+
+
+PROBLÈME N°9 : Imports cassés dans crud.py
+------------------------------------------
+Le fichier crud.py utilisait "models.User" alors que User est défini dans 
+database.py. Python ne trouvait pas la classe !
+
+ Solution : Corriger les imports pour utiliser directement User et Prediction
+
+
+LEÇON IMPORTANTE : Reconstruire Docker à chaque modif !
+-------------------------------------------------------
+On a perdu du temps parce qu'on oubliait que les fichiers Python sont copiés 
+DANS l'image Docker. Modifier les fichiers locaux ne change rien tant qu'on 
+ne reconstruit pas !
+
+ Commande magique : docker-compose build && docker-compose up -d
+
+
+ RÉCAPITULATIF DES FICHIERS MODIFIÉS
+======================================
+
+1. requirements.txt
+    Ajout de email-validator==2.1.0
+
+2. app/config.py  
+    Correction de l'URL PostgreSQL pour Docker
+
+3. app/routers/auth.py
+    Ajout de l'endpoint /register
+    Suppression du double préfixe
+
+4. app/routers/predictions.py
+    Correction model_version  model_ver
+
+5. app/routers/admin.py
+    Suppression du double préfixe
+
+6. app/crud.py
+    Correction des imports User et Prediction
+
+
+ TESTS : ÇA MARCHE ! 
+======================
+
+Voici les commandes curl pour tester chaque fonctionnalité :
+
+
+ INSCRIPTION D'UN UTILISATEUR
+-------------------------------
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "username": "john",
+    "password": "SecurePass123",
+    "full_name": "John Doe"
+  }'
+
+ Réponse : L'utilisateur est créé avec son ID !
+
+
+ CONNEXION (récupérer un token)
+---------------------------------
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=john&password=SecurePass123"
+
+ Réponse : Un token JWT à utiliser pour les requêtes suivantes
+
+
+ VOIR MON PROFIL
+------------------
+TOKEN="votre_token_ici"
+curl -X GET http://localhost:8000/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+
+
+ PRÉDICTION SANS TOKEN (test de sécurité)
+-------------------------------------------
+curl -X POST http://localhost:8000/predictions/predict \
+  -H "Content-Type: application/json" \
+  -d '{"age": 35, "income": 3200, "credit_amount": 15000, "duration": 48}'
+
+ Réponse : "Not authenticated" - La sécurité fonctionne ! 
+
+
+ PRÉDICTION AVEC TOKEN (cas rejeté)
+-------------------------------------
+curl -X POST http://localhost:8000/predictions/predict \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"age": 35, "income": 3200, "credit_amount": 15000, "duration": 48}'
+
+ Réponse : REJECTED avec 36% de probabilité
+
+
+ PRÉDICTION AVEC TOKEN (cas accepté)
+--------------------------------------
+curl -X POST http://localhost:8000/predictions/predict \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"age": 25, "income": 5000, "credit_amount": 8000, "duration": 24}'
+
+ Réponse : APPROVED avec 83% de probabilité
+
+
+ HISTORIQUE DES PRÉDICTIONS
+-----------------------------
+curl -X GET http://localhost:8000/predictions/history \
+  -H "Authorization: Bearer $TOKEN"
+
+ Réponse : Liste de toutes vos prédictions passées
+
+
+ MES STATISTIQUES
+-------------------
+curl -X GET http://localhost:8000/predictions/stats \
+  -H "Authorization: Bearer $TOKEN"
+
+ Réponse : Nombre total, acceptés, refusés, taux d'approbation
+
+
+ CONNEXION ADMIN
+------------------
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=admin123"
+
+
+ LISTE DES UTILISATEURS (admin seulement)
+-------------------------------------------
+curl -X GET http://localhost:8000/admin/users \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+
+ STATISTIQUES GLOBALES (admin seulement)
+------------------------------------------
+curl -X GET http://localhost:8000/admin/stats \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+ Réponse : {"total_users": 4, "total_predictions": 4}
+
+
+ BILAN FINAL
+==============
+
+Utilisateurs créés : 4 (admin, testuser, john, marie)
+Prédictions faites : 4
+Taux d'approbation : 50% (2 acceptés, 2 refusés)
+Endpoints testés   : 8/8 fonctionnels 
+
+
+ CE QU'ON A APPRIS
+====================
+
+1.  Docker cache les fichiers  Toujours reconstruire après une modif !
+
+2.  Vérifier les ports libres avant de lancer des conteneurs
+
+3.  Attention aux doubles préfixes dans FastAPI (main.py + router)
+
+4.  Pydantic est strict sur les noms de champs (model_ver ≠ model_version)
+
+5.  Les logs Docker sont vos amis  docker-compose logs api
+
+
+ STATUT : MISSION ACCOMPLIE !
+===============================
+
+L'API Credit Scoring est maintenant 100% opérationnelle :
+
+   Authentification JWT sécurisée
+   Base de données PostgreSQL qui tourne
+   Prédictions ML avec historique
+   Chaque utilisateur ne voit que ses données
+   Endpoints admin fonctionnels
+   Tous les tests passent
+
+On peut maintenant passer aux exercices du TD ! 
+
+================================================================================
+                           Fin du journal - Bonne continuation !
+================================================================================

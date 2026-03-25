@@ -6,7 +6,7 @@ services:
     image: postgres:15-alpine
     container_name: credit-scoring-db
     environment:
-      POSTGRES_USER: credit_user
+      POSTGRES_USER: credit_userd
       POSTGRES_PASSWORD: credit_password
       POSTGRES_DB: credit_scoring_db
     ports:
